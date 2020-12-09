@@ -1,86 +1,61 @@
-import numpy
-from pathlib import Path
 import numpy as np
 import roifile
 from matplotlib import pyplot as plt
 import cv2
-import os
+from pathlib import Path
+from zipfile import ZipFile
 
 
-def thresh_callback(val):
-    threshold = val
-    # Detect edges using Canny
-    canny_output = cv2.Canny(green_blurred, threshold, threshold * 3,L2gradient=True, apertureSize=3)
+def save_contour_roi(contours=None,
+                     out_path='',
+                     tiff_path=''):
 
-
-    # Find contours
-    contours, hierarchy = cv2.findContours(green_blurred, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_TC89_L1)
-
-    # filter contours
-    areas = np.array([np.prod(np.max(contour[:, 0, :], axis=0) - np.min(contour[:, 0, :], axis=0)) for contour in contours])
-    thresholded_idx = np.where(areas > area_threshold)[0]
-    contours = [contours[i] for i in thresholded_idx]
-
-    image_path_str = str(image_path)
-    image_path_str = image_path_str[:image_path_str.rfind('.')]
-    os.mkdir(image_path_str)
-
+    zip_obj = ZipFile(out_path / (str(tiff_path.stem) + '.zip'),'w')
     cntr = 0
     for contour in contours:
         roi = roifile.ImagejRoi.frompoints(contour[:, 0, :])
-        roi.tofile(image_path_str + '/' + str(cntr) + '.roi')
+        tmp_path = str(Path.cwd() / 'tmp' / (str(cntr) + '.roi'))
+        roi.tofile(tmp_path)
+        zip_obj.write(tmp_path)
+        Path.unlink(Path(tmp_path))
         cntr += 1
+    zip_obj.close()
 
 
-    # Draw contours
-    drawing = np.zeros((canny_output.shape[0], canny_output.shape[1], 3), dtype=np.uint8)
-    for i in range(len(contours)):
-        color = (0,0,255)
-        cv2.drawContours(drawing, contours, i, color, 2, cv2.LINE_8, hierarchy, 0)
-    # Show in a window
-    cv2.imshow('Contours', drawing)
+def blob_detector(tiff_file_path='',
+                  save_images=False,
+                  save_image_path='',
+                  zip_output_path='',
+                  green_threshold=10,
+                  area_threshold=5000):
+    im = cv2.imread(str(tiff_file_path))
 
-image_path = Path('C:/Users/Daniel/Desktop/Andi project/ATCC/CsT/IFITM1-pos/Snap-3109.tiff')
+    red = im[:, :, 2]
+    green = im[:, :, 1]
+    blue = im[:, :, 0]
 
+    # Gaussian blur image to eliminate sharp edges
+    green_blurred = cv2.blur(green, (20, 20))
 
+    # create binary image
+    green_blurred_tmp = green_blurred.copy()
+    green_blurred_tmp[green_blurred_tmp < green_threshold] = 0
+    green_blurred_tmp[green_blurred_tmp >= green_threshold] = 255
 
-im = cv2.imread(str(image_path))
+    # Find contours
+    contours, hierarchy = cv2.findContours(green_blurred_tmp, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_TC89_L1)
 
-red = im[:,:,2]
-green = im[:,:,1]
-blue = im[:,:,0]
+    # filter contours
+    areas = np.array(
+        [np.prod(np.max(contour[:, 0, :], axis=0) - np.min(contour[:, 0, :], axis=0)) for contour in contours])
+    thresholded_idx = np.where(areas > area_threshold)[0]
+    contours = [contours[i] for i in thresholded_idx]
 
-green[green > 50] = 25
+    # save contour to zip to be read with imageJ
+    save_contour_roi(contours=contours, out_path=zip_output_path, tiff_path=tiff_file_path)
 
-plt.subplot(131)
-plt.imshow(red)
-plt.title('red')
+    im_copy = im.copy()
+    cv2.drawContours(im_copy, contours, -1, (0, 255, 255), 3)
 
-plt.subplot(132)
-plt.imshow(green)
-plt.title('green')
-
-plt.subplot(133)
-plt.imshow(blue)
-plt.title('blue')
-
-plt.colorbar()
-
-green_blurred = cv2.blur(green, (20,20))
-green_blurred = cv2.equalizeHist(green_blurred)
-green_blurred[green_blurred < 220] = 0
-green_blurred[green_blurred >= 220] = 255
-
-area_threshold = 5000
-
-
-# Create Window
-source_window = 'Source'
-cv2.namedWindow(source_window)
-cv2.imshow(source_window, green_blurred)
-max_thresh = 255
-thresh = 12 # initial threshold
-cv2.createTrackbar('Canny Thresh:', source_window, thresh, max_thresh, thresh_callback)
-thresh_callback(thresh)
-cv2.waitKey()
-
+    # Save image
+    cv2.imwrite(f'{str(save_image_path / str(tiff_file_path.stem + "_segmented.png"))}', im_copy)
