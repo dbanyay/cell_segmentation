@@ -21,6 +21,19 @@ def save_contour_roi(contours=None,
         cntr += 1
     zip_obj.close()
 
+def calculate_red_intensity(contours, red):
+
+    for i in range(len(contours)):
+        # Create a mask image that contains the contour filled in
+        cimg = np.zeros_like(red)
+        cv2.drawContours(cimg, contours, i, color=255, thickness=-1)
+
+        # Access the image pixels and create a 1D numpy array then add to list
+        pts = np.where(cimg == 255)
+        avg_intensity = np.mean(red[pts[0], pts[1]])
+
+    return avg_intensity
+
 
 def blob_detector(tiff_file_path='',
                   save_images=False,
@@ -51,6 +64,9 @@ def blob_detector(tiff_file_path='',
     thresholded_idx = np.where(areas > area_threshold)[0]
     contours = [contours[i] for i in thresholded_idx]
 
+    # calculate red intensity
+    avg_red_intensity = calculate_red_intensity(contours, red)
+
     # save contour to zip to be read with imageJ
     save_contour_roi(contours=contours, out_path=zip_output_path, tiff_path=tiff_file_path)
 
@@ -59,3 +75,5 @@ def blob_detector(tiff_file_path='',
 
     # Save image
     cv2.imwrite(f'{str(save_image_path / str(tiff_file_path.stem + "_segmented.png"))}', im_copy)
+
+    return avg_red_intensity
