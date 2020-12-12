@@ -4,13 +4,13 @@ from matplotlib import pyplot as plt
 import cv2
 from pathlib import Path
 from zipfile import ZipFile
+from scipy.stats import ttest_ind
 
 
 def save_contour_roi(contours=None,
                      out_path='',
                      tiff_path=''):
-
-    zip_obj = ZipFile(out_path / (str(tiff_path.stem) + '.zip'),'w')
+    zip_obj = ZipFile(out_path / (str(tiff_path.stem) + '.zip'), 'w')
     cntr = 0
     for contour in contours:
         roi = roifile.ImagejRoi.frompoints(contour[:, 0, :])
@@ -21,18 +21,29 @@ def save_contour_roi(contours=None,
         cntr += 1
     zip_obj.close()
 
+
 def calculate_red_intensity(contours, red):
+    results = {}
 
     for i in range(len(contours)):
+        results.update({i: {}})
+        results[i]['area'] = cv2.contourArea(contours[i])
         # Create a mask image that contains the contour filled in
         cimg = np.zeros_like(red)
         cv2.drawContours(cimg, contours, i, color=255, thickness=-1)
 
         # Access the image pixels and create a 1D numpy array then add to list
-        pts = np.where(cimg == 255)
-        avg_intensity = np.mean(red[pts[0], pts[1]])
+        mask = np.where(cimg == 255)
+        points = red[mask[0], mask[1]]
+        results[i]['min'] = np.min(points)
+        results[i]['max'] = np.max(points)
+        results[i]['mean'] = np.mean(points)
+        results[i]['IntDen'] = results[i]['mean'] * results[i]['area']
 
-    return avg_intensity
+    avg_intden = np.sum([result['IntDen'] for result in results.values()]) / np.sum(
+        [result['area'] for result in results.values()])
+
+    return avg_intden
 
 
 def blob_detector(tiff_file_path='',
@@ -40,7 +51,7 @@ def blob_detector(tiff_file_path='',
                   save_image_path='',
                   zip_output_path='',
                   green_threshold=10,
-                  area_threshold=5000):
+                  area_threshold=1000):
     im = cv2.imread(str(tiff_file_path))
 
     red = im[:, :, 2]
@@ -65,7 +76,7 @@ def blob_detector(tiff_file_path='',
     contours = [contours[i] for i in thresholded_idx]
 
     # calculate red intensity
-    avg_red_intensity = calculate_red_intensity(contours, red)
+    avg_int_den = calculate_red_intensity(contours, red)
 
     # save contour to zip to be read with imageJ
     save_contour_roi(contours=contours, out_path=zip_output_path, tiff_path=tiff_file_path)
@@ -76,4 +87,4 @@ def blob_detector(tiff_file_path='',
     # Save image
     cv2.imwrite(f'{str(save_image_path / str(tiff_file_path.stem + "_segmented.png"))}', im_copy)
 
-    return avg_red_intensity
+    return avg_int_den
