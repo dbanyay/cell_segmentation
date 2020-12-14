@@ -40,8 +40,8 @@ pos_points = np.array(sum(pos_points_list, []))
 neg_points = np.array(sum(neg_points_list, []))
 
 # filter out non-contour paint values
-pos_points = pos_points[pos_points > 0]
-neg_points = neg_points[neg_points > 0]
+pos_points = pos_points[pos_points > 70]
+neg_points = neg_points[neg_points > 70]
 
 pos_mean = np.mean(pos_points)
 neg_mean = np.mean(neg_points)
@@ -61,10 +61,10 @@ print("p-value", pval)
 print(f'\nTotal time elapsed: {time() - time_start:.1f}s')
 
 plt.subplot(211)
-x_pos = np.linspace(0, np.max(pos_mean) * 3, 100)
+x_pos = np.linspace(0, 255, 100)
 y_pos = norm.pdf(x_pos, pos_mean, pos_std)
 
-x_neg = np.linspace(0, np.max(pos_mean) * 3, 100)
+x_neg = np.linspace(0, 255, 100)
 y_neg = norm.pdf(x_neg, neg_mean, neg_std)
 
 plt.plot(x_pos, y_pos, color='green')

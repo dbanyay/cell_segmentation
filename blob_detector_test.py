@@ -45,7 +45,9 @@ def thresh_callback(val):
     cv2.imshow('Contours', im_copy)
 
 
-image_path = Path('C:/Users/Daniel/Desktop/Andi project/ATCC/ZL/IFITM1-pos/Snap-3093.tiff')
+# image_path = Path('C:/Users/Daniel/Desktop/Andi project/ATCC/ZL/IFITM1-pos/Snap-3093.tiff')
+image_path = Path('C:/Users/Daniel/Desktop/Andi project/ATCC/PI/IFITM1-neg/Snap-3074.tiff')
+
 
 im = cv2.imread(str(image_path))
 
