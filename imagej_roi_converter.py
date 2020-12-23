@@ -1,33 +1,60 @@
 from pathlib import Path
 from zipfile import ZipFile
 import roifile
-import numpy as np
+import tkinter as tk
+from tkinter import filedialog
+from tkinter.ttk import Progressbar
 
-file_name = Path("C:/Users/Daniel/Desktop/Andi project/ATCC/CsT/IFITM1-neg/Snap-3114_cp_outlines.txt")
+root = tk.Tk()
+root.withdraw()
 
-with open(file_name, 'r') as textfile:
-    tmp_folder_path = file_name.parent / "tmp"
-    tmp_folder_path.mkdir(exist_ok=True)
+folder_path = Path(filedialog.askdirectory(title="Select folder with the outline.txt files..."))
 
-    # initialize zip file object
-    zip_obj = ZipFile(file_name.parent / (str(file_name.stem) + '.zip'), 'w')
+progress_bar_window = tk.Tk()
+progress_bar_window.title("Processing files...")
+progress_bar_window.geometry('600x100')
 
-    line_cntr = 0
-    for line in textfile:
-        xy_list = list(map(int, line.rstrip().split(',')))
-        x = xy_list[::2]
-        y = xy_list[1::2]
+num_files = len(list(folder_path.glob('*outlines.txt')))
+bar = Progressbar(progress_bar_window, length=500)
+bar['value'] = 0
+bar['maximum'] = 500
 
-        xy = np.array([x, y]).transpose()
+bar.update()
+bar.grid(column=0, row=0)
+bar.pack()
 
-        roi = roifile.ImagejRoi.frompoints(xy)
-        tmp_path = tmp_folder_path / (str(line_cntr) + '.roi')
-        roi.tofile(str(tmp_path))
-        zip_obj.write(tmp_path)
-        Path.unlink(Path(tmp_path))
-        line_cntr += 1
-    zip_obj.close()
-    tmp_folder_path.rmdir()
+file_cntr = 1
+for file_path in folder_path.glob('*outlines.txt'):
 
-# rm.runCommand("Associate", "true")
-# rm.runCommand("Show All with labels")
+    with open(file_path, 'r') as textfile:
+        tmp_folder_path = file_path.parent / "tmp"
+        tmp_folder_path.mkdir(exist_ok=True)
+
+        # initialize zip file object
+        zip_obj = ZipFile(file_path.parent / (str(file_path.stem) + '.zip'), 'w')
+
+        line_cntr = 0
+        for line in textfile:
+            try:
+                xy_list = list(map(int, line.rstrip().split(',')))
+                x = xy_list[::2]
+                y = xy_list[1::2]
+
+                xy = [(x_new, y_new) for x_new, y_new in zip(x, y)]
+
+                roi = roifile.ImagejRoi.frompoints(xy)
+                tmp_path = tmp_folder_path / (str(line_cntr) + '.roi')
+                roi.tofile(str(tmp_path))
+                zip_obj.write(tmp_path)
+                Path.unlink(Path(tmp_path))
+                line_cntr += 1
+            except:
+                print(f'Could not read {str(file_path)}')
+        zip_obj.close()
+        tmp_folder_path.rmdir()
+
+    file_path.unlink()
+
+    bar['value'] = int(file_cntr / num_files * 500)
+    progress_bar_window.update()
+    file_cntr += 1
