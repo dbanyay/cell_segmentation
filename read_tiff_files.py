@@ -4,6 +4,8 @@ from time import time
 import numpy as np
 from scipy.stats import ttest_ind, norm
 from matplotlib import pyplot as plt
+import random
+import pandas as pd
 
 time_start = time()
 path = Path('C:/Users/Daniel/Desktop/Andi project/ATCC')
@@ -19,6 +21,12 @@ if save_images == True:
 pos_points_list = []
 neg_points_list = []
 
+pos_to_csv = []
+neg_to_csv = []
+
+cell_bins_pos = np.zeros(255, dtype=int)
+cell_bins_neg = np.zeros(255, dtype=int)
+
 for tiff_file_path in path.glob('**/*.tiff'):
     if 'h0t0z' not in str(tiff_file_path) and 'merge' not in str(tiff_file_path):
         print(f'Processing {tiff_file_path}...')
@@ -31,17 +39,30 @@ for tiff_file_path in path.glob('**/*.tiff'):
                                intensity_metric=IntensityMetrics.mean)
 
         if '-pos' in str(tiff_file_path):
-            pos_points_list.append(points)
+            cell_bins_pos += points
+            # pos_to_csv += [[str(tiff_file_path)[42:-5],point] for point in points]
         elif '-neg' in str(tiff_file_path):
-            neg_points_list.append(points)
+            cell_bins_neg += points
+            # neg_to_csv += [[str(tiff_file_path)[42:-5],point] for point in points]
 
-# trick to flatten 2d list
-pos_points = np.array(sum(pos_points_list, []))
-neg_points = np.array(sum(neg_points_list, []))
+# pd.DataFrame(pos_to_csv).to_csv(path / "output_csvs" / "pos.csv", index=False)
+# pd.DataFrame(neg_to_csv).to_csv(path / "output_csvs" / "neg.csv", index=False)
 
-# filter out non-contour paint values
-pos_points = pos_points[pos_points > 70]
-neg_points = neg_points[neg_points > 70]
+cell_bins_truncated_pos = (cell_bins_pos / 10).astype(np.int)
+cell_bins_truncated_neg = (cell_bins_neg / 10).astype(np.int)
+
+pos_points = []
+neg_points = []
+
+for value, count in enumerate(cell_bins_pos):
+    pos_points.extend([value for i in range(count)])
+
+for value, count in enumerate(cell_bins_neg):
+    neg_points.extend([value for i in range(count)])
+
+pd.DataFrame(pos_points).to_excel(path / "output_csvs" / "pos.xlsx", index=False)
+pd.DataFrame(neg_points).to_excel(path / "output_csvs" / "neg.xlsx", index=False)
+
 
 pos_mean = np.mean(pos_points)
 neg_mean = np.mean(neg_points)

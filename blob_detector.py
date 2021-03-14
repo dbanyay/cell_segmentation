@@ -5,7 +5,7 @@ import cv2
 from pathlib import Path
 from zipfile import ZipFile
 from scipy.stats import ttest_ind
-
+from collections import Counter
 
 class IntensityMetrics:
     mean = 'mean'
@@ -30,16 +30,23 @@ def save_contour_roi(contours=None,
 
 
 def get_masked_points(contours='', img_channel=None, intensity_metric=IntensityMetrics.mean):
-    # results = {}
-    cimg = np.zeros_like(img_channel)
+
+    cells = np.zeros(255, dtype=np.int)
 
     for i in range(len(contours)):
+        cimg = np.zeros_like(img_channel)
+
         # Create a mask image that contains the contour filled in
         cv2.drawContours(cimg, contours, i, color=255, thickness=-1)
 
-    # Access the image pixels and create a 1D numpy array then add to list
-    mask = np.where(cimg == 255)
-    points = img_channel[mask[0], mask[1]]
+        # Access the image pixels and create a 1D numpy array then add to list
+        mask = np.where(cimg == 255)
+        points = img_channel[mask[0], mask[1]]
+        points = points[points > 70]
+        points_hist = Counter(points)
+
+        for key in list(points_hist.keys()):
+            cells[key] += points_hist[key]
 
     # results[i]['area'] = cv2.contourArea(contours[i])
     # results[i]['min'] = np.min(points)
@@ -49,7 +56,7 @@ def get_masked_points(contours='', img_channel=None, intensity_metric=IntensityM
     #
     # intensity_metric_value = [result[intensity_metric] for result in results.values()]
 
-    return list(points)
+    return cells
 
 
 def find_contours(img, blur_kernel_size=5, area_threshold=1000, color_threshold=100):
@@ -83,7 +90,6 @@ def blob_detector(tiff_file_path='',
                   red_threshold=10,
                   area_threshold=1000,
                   intensity_metric=IntensityMetrics.mean):
-
     im = cv2.imread(str(tiff_file_path))
 
     red = im[:, :, 2]
@@ -94,22 +100,28 @@ def blob_detector(tiff_file_path='',
     green_contours = find_contours(green, blur_kernel_size=20, area_threshold=area_threshold,
                                    color_threshold=green_threshold)
     # get green contoured red points
-    points = get_masked_points(contours=green_contours, img_channel=red, intensity_metric=IntensityMetrics.mean)
-
+    cell_averages = get_masked_points(contours=green_contours, img_channel=red, intensity_metric=IntensityMetrics.mean)
 
     # get blue contours
     blue_contours = find_contours(blue, blur_kernel_size=5, area_threshold=500, color_threshold=75)
-
-
 
     # save image
     im_copy = im.copy()
     cv2.drawContours(im_copy, green_contours, -1, (0, 255, 255), 3)
     cv2.drawContours(im_copy, blue_contours, -1, (255, 0, 0), 3)
 
+    cell_sum = 0
+    cell_num = 0
+
+    for i in range(len(cell_averages)):
+        cell_sum += cell_averages[i] * i
+        cell_num += cell_averages[i]
+
+
     # add avg red intensity
-    text = f'Average red intensity: {np.mean(points):.1f}'
-    cv2.putText(img=im_copy, text=text, org=(10,im_copy.shape[1] - 10), fontFace=cv2.FONT_HERSHEY_COMPLEX_SMALL, fontScale=1,
+    text = f'Average red intensity: {cell_sum/cell_num:.1f}'
+    cv2.putText(img=im_copy, text=text, org=(10, im_copy.shape[1] - 10), fontFace=cv2.FONT_HERSHEY_COMPLEX_SMALL,
+                fontScale=1,
                 color=(0, 0, 255))
 
     # setup text
@@ -132,4 +144,4 @@ def blob_detector(tiff_file_path='',
     # save contour to zip to be read with imageJ
     save_contour_roi(contours=green_contours, out_path=zip_output_path, tiff_path=tiff_file_path)
 
-    return points
+    return cell_averages

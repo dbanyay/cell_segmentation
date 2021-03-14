@@ -1,12 +1,11 @@
 import numpy as np
-from Bio.Affy import CelFile
 from pathlib import Path
 import GEOparse
 import pandas as pd
 from matplotlib import pyplot as plt
 
 path = Path("C:/Users/Daniel/Desktop/Andi project/database/Soft/GSE64392_family.soft")
-num_top_n = 50
+num_top_n = 1000
 
 gse = GEOparse.get_GEO(filepath=str(path))
 
@@ -24,23 +23,32 @@ for gsm_name, gsm in gse.gsms.items():
 
     cntr += 1
 
-sorted_means = joined_df.mean(axis=1).sort_values(ascending=False)[:num_top_n]
+sorted_means = joined_df.mean(axis=1).sort_values()[:num_top_n]
 
 gpl_table = gse.gpls[list(gse.gpls.keys())[0]].table
 
 gene_info = []
 gb_acc_list = []
+
+cntr = 0
 for key in list(sorted_means.keys()):
     gene_info.append(gpl_table.loc[gpl_table['ID'] == str(key)])
     gb_acc = gpl_table.loc[gpl_table['ID'] == str(key)]['GB_ACC'].values[0]
+    spot_id = gpl_table.loc[gpl_table['ID'] == str(key)]['SPOT_ID'].values[0]
+
 
     if type(gb_acc) is not str:
-        gb_acc_list.append(f'ID: {str(key)}')
+        gb_acc_list.append(f'SPOT ID: {spot_id}')
     else:
         gb_acc_list.append(f'GB_ACC: {gb_acc}')
 
 print(f'top {num_top_n} genes with highest average:')
 print(sorted_means.head(num_top_n))
+
+csv_df = pd.DataFrame(sorted_means, columns=['average value'])
+csv_df['ids'] = gb_acc_list
+
+csv_df.to_excel(str(path.parent/"joined_table_sorted.xls"))
 
 plt.bar(range(num_top_n), sorted_means.values[:num_top_n])
 plt.xticks(range(num_top_n), gb_acc_list, rotation='vertical')
